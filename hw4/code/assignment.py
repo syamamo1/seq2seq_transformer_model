@@ -7,6 +7,7 @@ from transformer_model import Transformer_Seq2Seq
 from rnn_model import RNN_Seq2Seq
 import sys
 import random
+import time
 
 from attenvis import AttentionVis
 av = AttentionVis()
@@ -29,8 +30,28 @@ def train(model, train_french, train_english, eng_padding_index):
 	# 
 	# - When computing loss, the decoder labels should have the first word removed:
 	#	 [STOP CS147 is the best class. STOP] --> [CS147 is the best class. STOP] 
+	start_time = time.time()
+	decoder_in = train_english[:,:-1] # remove last PAD token
+	decoder_ans = train_english[:,1:] # remove START token
 
-	pass
+	num_iterations = len(train_french)//model.batch_size
+	for i in range(0, num_iterations):
+		encoder_inputs = train_french[i*model.batch_size:(i+1)*model.batch_size]
+		decoder_inputs = decoder_in[i*model.batch_size:(i+1)*model.batch_size]
+		decoder_labels = decoder_ans[i*model.batch_size:(i+1)*model.batch_size]
+
+		mask = tf.cast(tf.not_equal(decoder_labels, eng_padding_index), tf.float32)
+		
+		with tf.GradientTape() as tape:
+			probs = model.call(encoder_inputs, decoder_inputs)
+			loss = model.loss_function(probs, decoder_labels, mask)
+			accuracy = model.accuracy_function(probs, decoder_labels, mask)
+			print("{}% training complete - Accuracy: {} - Train Time: {}".format(round(100*i/num_iterations, 3), accuracy, (time.time()-start_time)/60))
+
+		gradients = tape.gradient(loss, model.trainable_variables)
+		model.optimizer.apply_gradients(zip(gradients, model.trainable_variables))
+
+	return None
 
 @av.test_func
 def test(model, test_french, test_english, eng_padding_index):
@@ -46,8 +67,35 @@ def test(model, test_french, test_english, eng_padding_index):
 	"""
 
 	# Note: Follow the same procedure as in train() to construct batches of data!
-	
-	pass
+	start_time = time.time()
+	decoder_in = test_english[:,:-1] # remove last PAD token
+	decoder_ans = test_english[:,1:] # remove START token
+
+	num_iterations = len(test_french)//model.batch_size
+	total_loss = 0.0
+	total_accuracy = 0.0
+	total_words = 0.0
+	for i in range(0, num_iterations):
+		encoder_inputs = test_french[i*model.batch_size:(i+1)*model.batch_size]
+		decoder_inputs = decoder_in[i*model.batch_size:(i+1)*model.batch_size]
+		decoder_labels = tf.cast(decoder_ans[i*model.batch_size:(i+1)*model.batch_size], tf.int64)
+		
+		probs = model.call(encoder_inputs, decoder_inputs)
+		mask = tf.cast(tf.not_equal(decoder_labels, eng_padding_index), tf.float32)
+
+		loss = model.loss_function(probs, decoder_labels, mask)
+		total_loss += loss
+
+		words = tf.cast(tf.reduce_sum(mask), tf.float32)
+		accuracy = model.accuracy_function(probs, decoder_labels, mask)
+		total_accuracy += words*accuracy
+		print("{}% Testing complete - Accuracy: {} - Test Time: {}".format(round(100*i/num_iterations, 3), accuracy, (time.time()-start_time)/60))
+		total_words += words
+
+	print('perplexity', np.exp(total_loss/total_words))
+	print('accuracy per', total_accuracy/total_words)
+	return np.exp(total_loss/total_words), total_accuracy/total_words
+
 
 def main():	
 	if len(sys.argv) != 2 or sys.argv[1] not in {"RNN","TRANSFORMER"}:
@@ -73,9 +121,8 @@ def main():
 	
 	# TODO:
 	# Train and Test Model for 1 epoch.
-
-
-
+	train(model, train_french, train_english, eng_padding_index)
+	test(model, test_french, test_english, eng_padding_index)
 
 	# Visualize a sample attention matrix from the test set
 	# Only takes effect if you enabled visualizations above

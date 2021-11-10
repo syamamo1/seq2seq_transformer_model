@@ -26,15 +26,25 @@ class Transformer_Seq2Seq(tf.keras.Model):
 
 		# Define batch size and optimizer/learning rate
 		self.batch_size = 100
-		self.embedding_size = None
+		self.embedding_size = 128
 
 		# Define english and french embedding layers:
+		self.french_E = tf.Variable(tf.random.truncated_normal([self.french_vocab_size, self.embedding_size], stddev=.1))
+		self.english_E = tf.Variable(tf.random.truncated_normal([self.english_vocab_size, self.embedding_size], stddev=.1))
 		
 		# Create positional encoder layers
+		self.french_pos_encoder = transformer.Position_Encoding_Layer(french_window_size, self.embedding_size)
+		self.english_pos_encoder = transformer.Position_Encoding_Layer(english_window_size, self.embedding_size)
 
 		# Define encoder and decoder layers:
-	
+		self.encoder_transformer = transformer.Transformer_Block(self.embedding_size, is_decoder=False)
+		self.decoder_transformer = transformer.Transformer_Block(self.embedding_size, is_decoder=True)
+
 		# Define dense layer(s)
+		self.linear_layer1 = tf.keras.layers.Dense(256, activation='relu')
+		self.linear_layer2 = tf.keras.layers.Dense(self.english_vocab_size, activation='softmax')
+		
+		self.optimizer = tf.keras.optimizers.Adam(learning_rate=1e-3)
 
 	@tf.function
 	def call(self, encoder_input, decoder_input):
@@ -46,12 +56,20 @@ class Transformer_Seq2Seq(tf.keras.Model):
 	
 		# TODO:
 		#1) Add the positional embeddings to french sentence embeddings
+		french_embedding = tf.nn.embedding_lookup(self.french_E, encoder_input)
+		french_pos_embedding = self.french_pos_encoder(french_embedding)
 		#2) Pass the french sentence embeddings to the encoder
+		french_encoded = self.encoder_transformer(french_pos_embedding, None)
 		#3) Add positional embeddings to the english sentence embeddings
+		english_embedding = tf.nn.embedding_lookup(self.english_E, decoder_input)
+		english_pos_embedding = self.english_pos_encoder(english_embedding)
 		#4) Pass the english embeddings and output of your encoder, to the decoder
+		english_decoded = self.decoder_transformer(english_pos_embedding, french_encoded)
 		#5) Apply dense layer(s) to the decoder out to generate probabilities
-	
-		return None
+		linear1output = self.linear_layer1(english_decoded) 
+		probs = self.linear_layer2(linear1output)
+
+		return probs
 
 	def accuracy_function(self, prbs, labels, mask):
 		"""
@@ -82,8 +100,10 @@ class Transformer_Seq2Seq(tf.keras.Model):
 		"""
 
 		# Note: you can reuse this from rnn_model.
+		loss = tf.keras.losses.sparse_categorical_crossentropy(labels, prbs)
+		sum_loss = tf.reduce_sum(tf.boolean_mask(loss, mask))
 
-		return None		
+		return sum_loss		
 
 	@av.call_func
 	def __call__(self, *args, **kwargs):

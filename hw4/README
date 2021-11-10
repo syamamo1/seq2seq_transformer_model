@@ -1,1 +1,9 @@
 README
+
+No known bugs or errors in code. 
+
+RNN: 
+Train time = 20:51, Perplexity = 6.25, AccPerSymbol = 0.706
+
+TRANSFORMER:
+Perplexity = 5.82, AccPerSymbol = 0.703

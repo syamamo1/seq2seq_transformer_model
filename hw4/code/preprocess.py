@@ -111,18 +111,29 @@ def get_data(french_training_file, english_training_file, french_test_file, engl
 	#TODO:
 	
 	#1) Read English and French Data for training and testing (see read_data)
+	french_train_text = read_data(french_training_file)
+	french_test_text = read_data(french_test_file)
+	english_train_text = read_data(english_training_file)
+	english_test_text = read_data(english_test_file)
 
 	#2) Pad training data (see pad_corpus)
+	french_train_pad, english_train_pad = pad_corpus(french_train_text, english_train_text)
 
 	#3) Pad testing data (see pad_corpus)
+	french_test_pad, english_test_pad = pad_corpus(french_test_text, english_test_text)
 
 	#4) Build vocab for french (see build_vocab)
+	french_dict, pad_token_idx1 = build_vocab(french_train_pad)
 
 	#5) Build vocab for english (see build_vocab)
+	english_dict, pad_token_idx2 = build_vocab(english_train_pad)
 
 	#6) Convert training and testing english sentences to list of IDS (see convert_to_id)
+	english_train_input = convert_to_id(english_dict, english_train_pad)
+	english_test_input = convert_to_id(english_dict, english_test_pad)
 
 	#7) Convert training and testing french sentences to list of IDS (see convert_to_id)
-
-	return None
+	french_train_input = convert_to_id(french_dict, french_train_pad)
+	french_test_input = convert_to_id(french_dict, french_test_pad)
+	return english_train_input, english_test_input, french_train_input, french_test_input, english_dict, french_dict, pad_token_idx2
 	
